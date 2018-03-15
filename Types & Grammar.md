@@ -127,3 +127,7 @@ typeof b; // "undefined"
 ```
 
 The `typeof` operator returns `"undefined"` even for "undeclared" (or "not defined") variables.
+
+Many developers will assume "undefined" and "undeclared" are roughly the same thing, but in JavaScript, they're quite different. `undefined` is a value that a declared variable can hold. "Undeclared" means a variable has never been declared.
+
+JavaScript unfortunately kind of conflates these two terms, not only in its error messages ("ReferenceError: a is not defined") but also in the return values of `typeof`, which is `"undefined"` for both cases.
