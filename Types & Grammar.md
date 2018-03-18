@@ -131,3 +131,51 @@ The `typeof` operator returns `"undefined"` even for "undeclared" (or "not defin
 Many developers will assume "undefined" and "undeclared" are roughly the same thing, but in JavaScript, they're quite different. `undefined` is a value that a declared variable can hold. "Undeclared" means a variable has never been declared.
 
 JavaScript unfortunately kind of conflates these two terms, not only in its error messages ("ReferenceError: a is not defined") but also in the return values of `typeof`, which is `"undefined"` for both cases.
+
+# Chapter 2: Values
+
+`array`s, `string`s, and `number`s are the most basic building-blocks of any program, but JavaScript has some unique characteristics with these types that may either delight or confound you.
+
+Let's look at several of the built-in value types in JS, and explore how we can more fully understand and correctly leverage their behaviors.
+
+## Arrays
+
+As compared to other type-enforced languages, JavaScript `array`s are just containers for any type of value, from `string` to `number` to `object` to even another `array` (which is how you get multidimensional `array`s).
+**Warning:** Using `delete` on an `array` value will remove that slot from the `array`, but even if you remove the final element, it does **not** update the `length` property, so be careful!
+
+Be careful about creating "sparse" `array`s (leaving or creating empty/missing slots):
+
+```js
+var a = [ ];
+
+a[0] = 1;
+// no `a[1]` slot set here
+a[2] = [ 3 ];
+
+a[1];		// undefined
+
+a.length;	// 3
+```
+
+`array`s are numerically indexed (as you'd expect), but the tricky thing is that they also are objects that can have `string` keys/properties added to them (but which don't count toward the `length` of the `array`):
+
+```js
+var a = [ ];
+
+a[0] = 1;
+a["foobar"] = 2;
+
+a.length;		// 1
+a["foobar"];	// 2
+a.foobar;		// 2
+```
+
+However, a gotcha to be aware of is that if a `string` value intended as a key can be coerced to a standard base-10 `number`, then it is assumed that you wanted to use it as a `number` index rather than as a `string` key!
+
+```js
+var a = [ ];
+
+a["13"] = 42;
+
+a.length; // 14
+```
