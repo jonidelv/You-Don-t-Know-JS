@@ -179,3 +179,33 @@ a["13"] = 42;
 
 a.length; // 14
 ```
+
+### Array-Likes
+
+There will be occasions where you need to convert an `array`-like value (a numerically indexed collection of values) into a true `array`, usually so you can call array utilities (like `indexOf(..)`, `concat(..)`, `forEach(..)`, etc.) against the collection of values.
+
+For example, various DOM query operations return lists of DOM elements that are not true `array`s but are `array`-like enough for our conversion purposes. Another common example is when functions expose the `arguments` (`array`-like) object (as of ES6, deprecated) to access the arguments as a list.
+
+One very common way to make such a conversion is to borrow the `slice(..)` utility against the value:
+
+```js
+function foo() {
+	var arr = Array.prototype.slice.call( arguments );
+	arr.push( "bam" );
+	console.log( arr );
+}
+
+foo( "bar", "baz" ); // ["bar","baz","bam"]
+```
+
+As of ES6, there's also a built-in utility called `Array.from(..)` that can do the same task:
+
+```js
+...
+var arr = Array.from( arguments );
+...
+```
+
+## Strings
+
+It's important to realize that JavaScript `string`s are really not the same as `array`s of characters. The similarity is mostly just skin-deep.
