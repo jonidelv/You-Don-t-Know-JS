@@ -236,5 +236,6 @@ var d = Array.prototype.map.call( a, function(v){
 
 c;				// "f-o-o"
 d;				// "F.O.O."
+```
 
 The other way to look at this is: if you are more commonly doing tasks on your "strings" that treat them as basically *arrays of characters*, perhaps it's better to just actually store them as `array`s rather than as `string`s. You'll probably save yourself a lot of hassle of converting from `string` to `array` each time. You can always call `join("")` on the `array` *of characters* whenever you actually need the `string` representation.
