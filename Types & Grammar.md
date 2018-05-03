@@ -244,6 +244,8 @@ The other way to look at this is: if you are more commonly doing tasks on your "
 
 JavaScript has just one numeric type: `number`. This type includes both "integer" values and fractional decimal numbers.
 
+### Numeric Syntax
+
 Number literals are expressed in JavaScript generally as base-10 decimal literals. For example:
 
 ```js
