@@ -239,3 +239,53 @@ d;				// "F.O.O."
 ```
 
 The other way to look at this is: if you are more commonly doing tasks on your "strings" that treat them as basically *arrays of characters*, perhaps it's better to just actually store them as `array`s rather than as `string`s. You'll probably save yourself a lot of hassle of converting from `string` to `array` each time. You can always call `join("")` on the `array` *of characters* whenever you actually need the `string` representation.
+
+## Numbers
+
+JavaScript has just one numeric type: `number`. This type includes both "integer" values and fractional decimal numbers.
+
+Number literals are expressed in JavaScript generally as base-10 decimal literals. For example:
+
+```js
+var a = 42;
+var b = 42.3;
+```
+
+The leading portion of a decimal value, if `0`, is optional:
+
+```js
+var a = 0.42;
+var b = .42;
+```
+
+Similarly, the trailing portion (the fractional) of a decimal value after the `.`, if `0`, is optional:
+
+```js
+var a = 42.0;
+var b = 42.;
+```
+
+**Warning:** `42.` is pretty uncommon, and probably not a great idea if you're trying to avoid confusion when other people read your code. But it is, nevertheless, valid.
+
+By default, most `number`s will be outputted as base-10 decimals, with trailing fractional `0`s removed. So:
+
+```js
+var a = 42.300;
+var b = 42.0;
+
+a; // 42.3
+b; // 42
+```
+
+Very large or very small `number`s will by default be outputted in exponent form, the same as the output of the `toExponential()` method, like:
+
+```js
+var a = 5E10;
+a;					// 50000000000
+a.toExponential();	// "5e+10"
+
+var b = a * a;
+b;					// 2.5e+21
+
+var c = 1 / a;
+c;	
