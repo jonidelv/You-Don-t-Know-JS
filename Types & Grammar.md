@@ -291,3 +291,31 @@ b;					// 2.5e+21
 
 var c = 1 / a;
 c;	
+```
+
+Because `number` values can be boxed with the `Number` object wrapper, `number` values can access methods that are built into the `Number.prototype` (see Chapter 3). For example,
+
+```js
+var a = 42.59;
+
+a.toFixed( 0 ); // "43"
+a.toFixed( 1 ); // "42.6"
+a.toFixed( 2 ); // "42.59"
+a.toFixed( 3 ); // "42.590"
+a.toFixed( 4 ); // "42.5900"
+```
+
+Notice that the output is actually a `string` representation of the `number`, and that the value is `0`-padded on the right-hand side if you ask for more decimals than the value holds.
+
+`toPrecision(..)` is similar, but specifies how many *significant digits* should be used to represent the value:
+
+```js
+var a = 42.59;
+
+a.toPrecision( 1 ); // "4e+1"
+a.toPrecision( 2 ); // "43"
+a.toPrecision( 3 ); // "42.6"
+a.toPrecision( 4 ); // "42.59"
+a.toPrecision( 5 ); // "42.590"
+a.toPrecision( 6 ); // "42.5900"
+```
