@@ -319,3 +319,47 @@ a.toPrecision( 4 ); // "42.59"
 a.toPrecision( 5 ); // "42.590"
 a.toPrecision( 6 ); // "42.5900"
 ```
+
+``js
+// invalid syntax:
+42.toFixed( 3 );	// SyntaxError
+
+// these are all valid:
+(42).toFixed( 3 );	// "42.000"
+0.42.toFixed( 3 );	// "0.420"
+42..toFixed( 3 );	// "42.000"
+```
+
+`42.toFixed(3)` is invalid syntax, because the `.` is swallowed up as part of the `42.` literal (which is valid -- see above!), and so then there's no `.` property operator present to make the `.toFixed` access.
+
+`42..toFixed(3)` works because the first `.` is part of the `number` and the second `.` is the property operator. But it probably looks strange, and indeed it's very rare to see something like that in actual JavaScript code. In fact, it's pretty uncommon to access methods directly on any of the primitive values. Uncommon doesn't mean *bad* or *wrong*.
+
+`number`s can also be specified in exponent form, which is common when representing larger `number`s, such as:
+
+```js
+var onethousand = 1E3;				// means 1 * 10^3
+var onemilliononehundredthousand = 1.1E6;	// means 1.1 * 10^6
+```
+
+`number` literals can also be expressed in other bases, like binary, octal, and hexadecimal.
+
+As of ES6, the following new forms are also valid:
+
+```js
+0o363;		// octal for: 243
+0O363;		// ditto
+
+0b11110011;	// binary for: 243
+0B11110011;     // ditto
+```
+
+
+### Small Decimal Values
+
+The most (in)famous side effect of using binary floating-point numbers (which, remember, is true of **all** languages that use IEEE 754 -- not *just* JavaScript as many assume/pretend) is:
+
+```js
+0.1 + 0.2 === 0.3; // false
+Mathematically, we know that statement should be `true`. Why is it `false`?
+
+Simply put, the representations for `0.1` and `0.2` in binary floating-point are not exact, so when they are added, the result is not exactly `0.3`. It's **really** close: `0.30000000000000004`, but if your comparison fails, "close" is irrelevant.
