@@ -320,7 +320,7 @@ a.toPrecision( 5 ); // "42.590"
 a.toPrecision( 6 ); // "42.5900"
 ```
 
-``js
+```js
 // invalid syntax:
 42.toFixed( 3 );	// SyntaxError
 
@@ -360,6 +360,7 @@ The most (in)famous side effect of using binary floating-point numbers (which, r
 
 ```js
 0.1 + 0.2 === 0.3; // false
-Mathematically, we know that statement should be `true`. Why is it `false`?
+```
 
+Mathematically, we know that statement should be `true`. Why is it `false`?
 Simply put, the representations for `0.1` and `0.2` in binary floating-point are not exact, so when they are added, the result is not exactly `0.3`. It's **really** close: `0.30000000000000004`, but if your comparison fails, "close" is irrelevant.
