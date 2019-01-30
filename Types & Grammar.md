@@ -364,3 +364,134 @@ The most (in)famous side effect of using binary floating-point numbers (which, r
 
 Mathematically, we know that statement should be `true`. Why is it `false`?
 Simply put, the representations for `0.1` and `0.2` in binary floating-point are not exact, so when they are added, the result is not exactly `0.3`. It's **really** close: `0.30000000000000004`, but if your comparison fails, "close" is irrelevant.
+
+What if we *did* need to compare two `number`s, like `0.1 + 0.2` to `0.3`, knowing that the simple equality test fails?
+
+The most commonly accepted practice is to use a tiny "rounding error" value as the *tolerance* for comparison. This tiny value is often called "machine epsilon," which is commonly `2^-52` (`2.220446049250313e-16`) for the kind of `number`s in JavaScript.
+
+As of ES6, `Number.EPSILON` is predefined with this tolerance value, so you'd want to use it
+We can use this `Number.EPSILON` to compare two `number`s for "equality" (within the rounding error tolerance):
+
+```js
+function numbersCloseEnoughToEqual(n1,n2) {
+	return Math.abs( n1 - n2 ) < Number.EPSILON;
+}
+
+var a = 0.1 + 0.2;
+var b = 0.3;
+
+numbersCloseEnoughToEqual( a, b );					// true
+numbersCloseEnoughToEqual( 0.0000001, 0.0000002 );	// false
+```
+
+The maximum floating-point value that can be represented is roughly `1.798e+308` (which is really, really, really huge!), predefined for you as `Number.MAX_VALUE`. On the small end, `Number.MIN_VALUE` is roughly `5e-324`, which isn't negative but is really close to zero!
+
+### Safe Integer Ranges
+
+The maximum integer that can "safely" be represented (that is, there's a guarantee that the requested value is actually representable unambiguously) is `2^53 - 1`, which is `9007199254740991`. If you insert your commas, you'll see that this is just over 9 quadrillion. So that's pretty darn big for `number`s to range up to.
+
+This value is actually automatically predefined in ES6, as `Number.MAX_SAFE_INTEGER`. Unsurprisingly, there's a minimum value, `-9007199254740991`, and it's defined in ES6 as `Number.MIN_SAFE_INTEGER`.
+
+The main way that JS programs are confronted with dealing with such large numbers is when dealing with 64-bit IDs from databases, etc. 64-bit numbers cannot be represented accurately with the `number` type, so must be stored in (and transmitted to/from) JavaScript using `string` representation.
+
+### Testing for Integers
+
+To test if a value is an integer, you can use the ES6-specified `Number.isInteger(..)`:
+
+```js
+Number.isInteger( 42 );		// true
+Number.isInteger( 42.000 );	// true
+Number.isInteger( 42.3 );	// false
+```
+
+### The Non-value Values
+
+For the `undefined` type, there is one and only one value: `undefined`. For the `null` type, there is one and only one value: `null`. So for both of them, the label is both its type and its value.
+
+* `null` is an empty value
+* `undefined` is a missing value
+
+Or:
+
+* `undefined` hasn't had a value yet
+* `null` had a value and doesn't anymore
+
+In both non-`strict` mode and `strict` mode, however, you can create a local variable of the name `undefined`. But again, this is a terrible idea!
+
+```js
+function foo() {
+	"use strict";
+	var undefined = 2;
+	console.log( undefined ); // 2
+}
+
+foo();
+```
+
+#### `void` Operator
+
+By convention (mostly from C-language programming), to represent the `undefined` value stand-alone by using `void`, you'd use `void 0` (though clearly even `void true` or any other `void` expression does the same thing). There's no practical difference between `void 0`, `void 1`, and `undefined`.
+
+For example:
+
+```js
+function doSomething() {
+	// note: `APP.ready` is provided by our application
+	if (!APP.ready) {
+		// try again later
+		return void setTimeout( doSomething, 100 );
+	}
+
+	var result;
+
+	// do some other stuff
+	return result;
+}
+
+// were we able to do it right away?
+if (doSomething()) {
+	// handle next tasks right away
+}
+```
+
+Here, the `setTimeout(..)` function returns a numeric value (the unique identifier of the timer interval, if you wanted to cancel it), but we want to `void` that out so that the return value of our function doesn't give a false-positive with the `if` statement.
+
+Many devs prefer to just do these actions separately, which works the same but doesn't use the `void` operator:
+
+```js
+if (!APP.ready) {
+	// try again later
+	setTimeout( doSomething, 100 );
+	return;
+}
+```
+
+### Special Numbers
+
+The `number` type includes several special values. We'll take a look at each in detail.
+
+#### The Not Number, Number
+Any mathematic operation you perform without both operands being `number`s (or values that can be interpreted as regular `number`s in base 10 or base 16) will result in the operation failing to produce a valid `number`, in which case you will get the `NaN` value.
+
+`NaN` literally stands for "not a `number`", though this label/description is very poor and misleading, as we'll see shortly. It would be much more accurate to think of `NaN` as being "invalid number," "failed number," or even "bad number," than to think of it as "not a number."
+
+For example:
+
+```js
+var a = 2 / "foo";		// NaN
+
+typeof a === "number";	// true
+```
+
+`NaN` is a very special value in that it's never equal to another `NaN` value (i.e., it's never equal to itself). It's the only value, in fact, that is not reflexive (without the Identity characteristic `x === x`). So, `NaN !== NaN`. A bit strange, huh?
+
+So how *do* we test for it, if we can't compare to `NaN` (since that comparison would always fail)?
+
+```js
+var a = 2 / "foo";
+
+isNaN( a ); // true
+```
+
+
+#### `void` Operator
