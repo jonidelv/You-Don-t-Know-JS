@@ -492,6 +492,3 @@ var a = 2 / "foo";
 
 isNaN( a ); // true
 ```
-
-
-#### `void` Operator
