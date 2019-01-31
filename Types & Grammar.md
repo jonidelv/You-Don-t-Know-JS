@@ -492,3 +492,21 @@ var a = 2 / "foo";
 
 isNaN( a ); // true
 ```
+
+The `isNaN(..)` utility has a fatal flaw. It appears it tried to take the meaning of `NaN` ("Not a Number") too literally -- that its job is basically: "test if the thing passed in is either not a `number` or is a `number`." But that's not quite accurate.
+
+```js
+var a = 2 / "foo";
+var b = "foo";
+
+a; // NaN
+b; // "foo"
+
+window.isNaN( a ); // true
+window.isNaN( b ); // true -- ouch!
+```
+
+Clearly, `"foo"` is literally *not a `number`*, but it's definitely not the `NaN` value either! This bug has been in JS since the very beginning (over 19 years of *ouch*).
+
+As of ES6, finally a replacement utility has been provided: `Number.isNaN(..)`
+
