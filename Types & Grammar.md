@@ -510,3 +510,101 @@ Clearly, `"foo"` is literally *not a `number`*, but it's definitely not the `NaN
 
 As of ES6, finally a replacement utility has been provided: `Number.isNaN(..)`
 
+#### Infinities
+
+
+```js
+var a = 1 / 0;
+```
+
+However, in JS, this operation is well-defined and results in the value `Infinity` (aka `Number.POSITIVE_INFINITY`). Unsurprisingly:
+
+```js
+var a = 1 / 0;	// Infinity
+var b = -1 / 0;	// -Infinity
+```
+
+`Infinity / Infinity` is not a defined operation. In JS, this results in `NaN`.
+But what about any positive finite `number` divided by `Infinity`? That's easy! `0`.
+
+#### Zeros
+
+JavaScript has both a normal zero `0` (otherwise known as a positive zero `+0`) *and* a negative zero `-0`. Before we explain why the `-0` exists, we should examine how JS handles it, because it can be quite confusing.
+
+Besides being specified literally as `-0`, negative zero also results from certain mathematic operations. For example:
+
+```js
+var a = 0 / -3; // -0
+var b = 0 * -3; // -0
+```
+
+However, if you try to stringify a negative zero value, it will always be reported as `"0"`, according to the spec.
+
+```js
+var a = 0 / -3;
+
+// (some browser) consoles at least get it right
+a;							// -0
+
+// but the spec insists on lying to you!
+a.toString();				// "0"
+a + "";						// "0"
+String( a );				// "0"
+
+// strangely, even JSON gets in on the deception
+JSON.stringify( a );		// "0"
+```
+
+Interestingly, the reverse operations (going from `string` to `number`) don't lie:
+
+```js
++"-0";				// -0
+Number( "-0" );		// -0
+JSON.parse( "-0" );	// -0
+```
+
+```js
+var a = 0;
+var b = 0 / -3;
+
+a == b;		// true
+-0 == 0;	// true
+
+a === b;	// true
+-0 === 0;	// true
+
+0 > -0;		// false
+a > b;		// false
+```
+
+Clearly, if you want to distinguish a `-0` from a `0` in your code, you can't just rely on what the developer console outputs, so you're going to have to be a bit more clever:
+
+```js
+function isNegZero(n) {
+	n = Number( n );
+	return (n === 0) && (1 / n === -Infinity);
+}
+
+isNegZero( -0 );		// true
+isNegZero( 0 / -3 );	// true
+isNegZero( 0 );			// false
+```
+
+### Special Equality
+
+As we saw above, the `NaN` value and the `-0` value have special behavior when it comes to equality comparison. `NaN` is never equal to itself, so you have to use ES6's `Number.isNaN(..)` (or a polyfill). Similarly, `-0` lies and pretends that it's equal (even `===` strict equal -- see Chapter 4) to regular positive `0`, so you have to use the somewhat hackish `isNegZero(..)` utility we suggested above.
+
+As of ES6, there's a new utility that can be used to test two values for absolute equality, without any of these exceptions. It's called `Object.is(..)`:
+
+```js
+var a = 2 / "foo";
+var b = -3 * 0;
+
+Object.is( a, NaN );	// true
+Object.is( b, -0 );		// true
+
+Object.is( b, 0 );		// false
+```
+
+## Value vs. Reference
+
