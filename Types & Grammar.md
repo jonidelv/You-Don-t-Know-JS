@@ -634,4 +634,27 @@ Simple values (aka scalar primitives) are *always* assigned/passed by value-copy
 
 Compound values -- `object`s (including `array`s, and all boxed object wrappers -- see Chapter 3) and `function`s -- *always* create a copy of the reference on assignment or passing.
 
+```js
+function foo(x) {
+	x = x + 1;
+	x; // 3
+}
+
+var a = 2;
+var b = new Number( a ); // or equivalently `Object(a)`
+
+foo( b );
+console.log( b ); // 2, not 3
+```
+
+The problem is that the underlying scalar primitive value is *not mutable* 
+
+## Review
+
+The `null` type has just one value: `null`, and likewise the `undefined` type has just the `undefined` value. `undefined` is basically the default value in any variable or property if no other value is present. The `void` operator lets you create the `undefined` value from any other value.
+
+`number`s include several special values, like `NaN` (supposedly "Not a Number", but really more appropriately "invalid number"); `+Infinity` and `-Infinity`; and `-0`.
+
+# Chapter 3: Natives
+
 
