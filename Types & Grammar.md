@@ -805,3 +805,177 @@ b; // [1, 2, 3]
 **Note:** The `Array(..)` constructor does not require the `new` keyword in front of it. If you omit it, it will behave as if you have used it anyway. So `Array(1,2,3)` is the same outcome as `new Array(1,2,3)`.
 
 
+**Note:** An array with at least one "empty slot" in it is often called a "sparse array."
+
+For example:
+
+```js
+var a = new Array( 3 );
+
+a.length; // 3
+a;
+```
+
+The serialization of `a` in Chrome is (at the time of writing): `[ undefined x 3 ]`. **This is really unfortunate.** It implies that there are three `undefined` values in the slots of this array, when in fact the slots do not exist (so-called "empty slots" -- also a bad name!).
+
+To visualize the difference, try this:
+
+```js
+var a = new Array( 3 );
+var b = [ undefined, undefined, undefined ];
+var c = [];
+c.length = 3;
+
+a;
+b;
+c;
+```
+
+So, if you wanted to *actually* create an array of actual `undefined` values (not just "empty slots"), how could you do it (besides manually)?
+
+```js
+var a = Array.apply( null, { length: 3 } );
+a; // [ undefined, undefined, undefined ]
+```
+
+Bottom line: **never ever, under any circumstances**, should you intentionally create and use these exotic empty-slot arrays. Just don't do it. They're nuts.
+
+
+### `Object(..)`, `Function(..)`, and `RegExp(..)`
+
+The `Object(..)`/`Function(..)`/`RegExp(..)` constructors are also generally optional (and thus should usually be avoided unless specifically called for):
+
+```js
+var c = new Object();
+c.foo = "bar";
+c; // { foo: "bar" }
+
+var d = { foo: "bar" };
+d; // { foo: "bar" }
+
+var e = new Function( "a", "return a * 2;" );
+var f = function(a) { return a * 2; };
+function g(a) { return a * 2; }
+
+var h = new RegExp( "^a*b+", "g" );
+var i = /^a*b+/g;
+```
+
+There's practically no reason to ever use the `new Object()` constructor form, especially since it forces you to add properties one-by-one instead of many at once in the object literal form.
+
+The `Function` constructor is helpful only in the rarest of cases, where you need to dynamically define a function's parameters and/or its function body. **Do not just treat `Function(..)` as an alternate form of `eval(..)`.** You will almost never need to dynamically define a function in this way.
+
+Regular expressions defined in the literal form (`/^a*b+/g`) are strongly preferred, not just for ease of syntax but for performance reasons -- the JS engine precompiles and caches them before code execution. Unlike the other constructor forms we've seen so far, `RegExp(..)` has some reasonable utility: to dynamically define the pattern for a regular expression.
+
+```js
+var name = "Kyle";
+var namePattern = new RegExp( "\\b(?:" + name + ")+\\b", "ig" );
+
+var matches = someText.match( namePattern );
+```
+
+### `Date(..)` and `Error(..)`
+
+The `Date(..)` and `Error(..)` native constructors are much more useful than the other natives, because there is no literal form for either.
+
+**Note:** If you call `Date()` without `new`, you'll get back a string representation of the date/time at that moment. The exact form of this representation is not specified in the language spec, though browsers tend to agree on something close to: `"Fri Jul 18 2014 00:31:02 GMT-0500 (CDT)"`.
+
+The `Error(..)` constructor (much like `Array()` above) behaves the same with the `new` keyword present or omitted.
+
+This stack context includes the function call-stack and the line-number where the error object was created, which makes debugging that error much easier.
+
+You would typically use such an error object with the `throw` operator:
+
+```js
+function foo(x) {
+	if (!x) {
+		throw new Error( "x wasn't provided" );
+	}
+	// ..
+}
+```
+
+**Tip:** Technically, in addition to the general `Error(..)` native, there are several other specific-error-type natives: `EvalError(..)`, `RangeError(..)`, `ReferenceError(..)`, `SyntaxError(..)`, `TypeError(..)`, and `URIError(..)`. But it's very rare to manually use these specific error natives. They are automatically used if your program actually suffers from a real exception (such as referencing an undeclared variable and getting a `ReferenceError` error).
+
+### `Symbol(..)`
+
+Symbols are special "unique" (not strictly guaranteed!) values that can be used as properties on objects with little fear of any collision
+Symbols can be used as property names, but you cannot see or access the actual value of a symbol from your program, nor from the developer console. If you evaluate a symbol in the developer console, what's shown looks like `Symbol(Symbol.create)`, for example.
+
+There are several predefined symbols in ES6, accessed as static properties of the `Symbol` function object, like `Symbol.create`, `Symbol.iterator`, etc. To use them, do something like:
+
+```js
+obj[Symbol.iterator] = function(){ /*..*/ };
+```
+
+To define your own custom symbols, use the `Symbol(..)` native. The `Symbol(..)` native "constructor" is unique in that you're not allowed to use `new` with it, as doing so will throw an error.
+
+```js
+var mysym = Symbol( "my own symbol" );
+mysym;				// Symbol(my own symbol)
+mysym.toString();	// "Symbol(my own symbol)"
+typeof mysym; 		// "symbol"
+
+var a = { };
+a[mysym] = "foobar";
+
+Object.getOwnPropertySymbols( a );
+// [ Symbol(my own symbol) ]
+```
+
+While symbols are not actually private (`Object.getOwnPropertySymbols(..)` reflects on the object and reveals the symbols quite publicly), using them for private or special properties is likely their primary use-case. For most developers, they may take the place of property names with `_` underscore prefixes, which are almost always by convention signals to say, "hey, this is a private/special/internal property, so leave it alone!"
+
+**Note:** `Symbol`s are *not* `object`s, they are simple scalar primitives.
+
+### Native Prototypes
+
+Each of the built-in native constructors has its own `.prototype` object -- `Array.prototype`, `String.prototype`, etc.
+
+These objects contain behavior unique to their particular object subtype.
+
+For example, all string objects, and by extension (via boxing) `string` primitives, have access to default behavior as methods defined on the `String.prototype` object.
+
+**Note:** By documentation convention, `String.prototype.XYZ` is shortened to `String#XYZ`, and likewise for all the other `.prototype`s.
+
+* `String#indexOf(..)`: find the position in the string of another substring
+* `String#charAt(..)`: access the character at a position in the string
+* `String#substr(..)`, `String#substring(..)`, and `String#slice(..)`: extract a portion of the string as a new string
+* `String#toUpperCase()` and `String#toLowerCase()`: create a new string that's converted to either uppercase or lowercase
+* `String#trim()`: create a new string that's stripped of any trailing or leading whitespace
+
+#### Prototypes As Defaults
+
+`Function.prototype` being an empty function, `RegExp.prototype` being an "empty" (e.g., non-matching) regex, and `Array.prototype` being an empty array, make them all nice "default" values to assign to variables if those variables wouldn't already have had a value of the proper type.
+
+For example:
+
+```js
+function isThisCool(vals,fn,rx) {
+	vals = vals || Array.prototype;
+	fn = fn || Function.prototype;
+	rx = rx || RegExp.prototype;
+
+	return rx.test(
+		vals.map( fn ).join( "" )
+	);
+}
+
+isThisCool();		// true
+
+isThisCool(
+	["a","b","c"],
+	function(v){ return v.toUpperCase(); },
+	/D/
+);					// false
+```
+
+## Review
+
+JavaScript provides object wrappers around primitive values, known as natives (`String`, `Number`, `Boolean`, etc). These object wrappers give the values access to behaviors appropriate for each object subtype (`String#trim()` and `Array#concat(..)`).
+
+If you have a simple scalar primitive value like `"abc"` and you access its `length` property or some `String.prototype` method, JS automatically "boxes" the value (wraps it in its respective object wrapper) so that the property/method accesses can be fulfilled.
+
+
+
+
+
