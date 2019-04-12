@@ -785,6 +785,7 @@ var b = a + ""; // `b` has the unboxed primitive value "abc"
 
 typeof a; // "object"
 typeof b; // "string"
+```
 
 ## Natives as Constructors
 
@@ -974,6 +975,453 @@ isThisCool(
 JavaScript provides object wrappers around primitive values, known as natives (`String`, `Number`, `Boolean`, etc). These object wrappers give the values access to behaviors appropriate for each object subtype (`String#trim()` and `Array#concat(..)`).
 
 If you have a simple scalar primitive value like `"abc"` and you access its `length` property or some `String.prototype` method, JS automatically "boxes" the value (wraps it in its respective object wrapper) so that the property/method accesses can be fulfilled.
+
+# Chapter 4: Coercion
+
+## Converting Values
+
+Converting a value from one type to another is often called "type casting," when done explicitly, and "coercion" when done implicitly (forced by the rules of how a value is used).
+
+**Note:** It may not be obvious, but JavaScript coercions always result in one of the scalar primitive (see Chapter 2) values, like `string`, `number`, or `boolean`. There is no coercion that results in a complex value like `object` or `function`. Chapter 3 covers "boxing," which wraps scalar primitive values in their `object` counterparts, but this is not really coercion in an accurate sense.
+
+```js
+var a = 42;
+
+var b = a + "";			// implicit coercion
+
+var c = String( a );	// explicit coercion
+```
+
+## Abstract Value Operations
+
+### `ToString`
+
+Built-in primitive values have natural stringification: `null` becomes `"null"`, `undefined` becomes `"undefined"` and `true` becomes `"true"`. `number`s are generally expressed in the natural way you'd expect, but as we discussed in Chapter 2, very small or very large `numbers` are represented in exponent form:
+
+```js
+// multiplying `1.07` by `1000`, seven times over
+var a = 1.07 * 1000 * 1000 * 1000 * 1000 * 1000 * 1000 * 1000;
+
+// seven times three digits => 21 digits
+a.toString(); // "1.07e21"
+```
+
+For regular objects, unless you specify your own, the default `toString()` (located in `Object.prototype.toString()`) will return the *internal `[[Class]]`
+
+Arrays have an overridden default `toString()` that stringifies as the (string) concatenation of all its values (each stringified themselves), with `","` in between each value:
+
+```js
+var a = [1,2,3];
+
+a.toString(); // "1,2,3"
+```
+
+#### JSON Stringification
+
+
+```js
+JSON.stringify( 42 );	// "42"
+JSON.stringify( "42" );	// ""42"" (a string with a quoted string value in it)
+JSON.stringify( null );	// "null"
+JSON.stringify( true );	// "true"
+```
+
+Any *JSON-safe* value can be stringified by `JSON.stringify(..)`. But what is *JSON-safe*? Any value that can be represented validly in a JSON representation.
+
+It may be easier to consider values that are **not** JSON-safe. Some examples: `undefined`s, `function`s, (ES6+) `symbol`s, and `object`s with circular references.
+
+The `JSON.stringify(..)` utility will automatically omit `undefined`, `function`, and `symbol` values
+
+Consider:
+
+```js
+JSON.stringify( undefined );					// undefined
+JSON.stringify( function(){} );					// undefined
+
+JSON.stringify( [1,undefined,function(){},4] );	// "[1,null,null,4]"
+JSON.stringify( { a:2, b:function(){} } );		// "{"a":2}"
+```
+
+If you intend to JSON stringify an object that may contain illegal JSON value(s), or if you just have values in the `object` that aren't appropriate for the serialization, you should define a `toJSON()` method for it that returns a *JSON-safe* version of the `object`.
+
+For example:
+
+```js
+var o = { };
+
+var a = {
+	b: 42,
+	c: o,
+	d: function(){}
+};
+
+// create a circular reference inside `a`
+o.e = a;
+
+// would throw an error on the circular reference
+// JSON.stringify( a );
+
+// define a custom JSON value serialization
+a.toJSON = function() {
+	// only include the `b` property for serialization
+	return { b: this.b };
+};
+
+JSON.stringify( a ); // "{"b":42}"
+```
+
+Consider:
+
+```js
+var a = {
+	val: [1,2,3],
+
+	// probably correct!
+	toJSON: function(){
+		return this.val.slice( 1 );
+	}
+};
+
+var b = {
+	val: [1,2,3],
+
+	// probably incorrect!
+	toJSON: function(){
+		return "[" +
+			this.val.slice( 1 ).join() +
+		"]";
+	}
+};
+
+JSON.stringify( a ); // "[2,3]"
+
+JSON.stringify( b ); // ""[2,3]""
+```
+
+An optional second argument can be passed to `JSON.stringify(..)` that is called *replacer*. This argument can either be an `array` or a `function`. It's used to customize the recursive serialization of an `object` by providing a filtering mechanism for which properties should and should not be included, in a similar way to how `toJSON()` can prepare a value for serialization.
+
+If *replacer* is an `array`, it should be an `array` of `string`s, each of which will specify a property name that is allowed to be included in the serialization of the `object`. If a property exists that isn't in this list, it will be skipped.
+
+If *replacer* is a `function`, it will be called once for the `object` itself, and then once for each property in the `object`, and each time is passed two arguments, *key* and *value*. To skip a *key* in the serialization, return `undefined`. Otherwise, return the *value* provided.
+
+```js
+var a = {
+	b: 42,
+	c: "42",
+	d: [1,2,3]
+};
+
+JSON.stringify( a, ["b","c"] ); // "{"b":42,"c":"42"}"
+
+JSON.stringify( a, function(k,v){
+	if (k !== "c") return v;
+} );
+// "{"b":42,"d":[1,2,3]}"
+```
+
+A third optional argument can also be passed to `JSON.stringify(..)`, called *space*, which is used as indentation for prettier human-friendly output. *space* can be a positive integer to indicate how many space characters should be used at each indentation level. Or, *space* can be a `string`, in which case up to the first ten characters of its value will be used for each indentation level.
+
+```js
+var a = {
+	b: 42,
+	c: "42",
+	d: [1,2,3]
+};
+
+JSON.stringify( a, null, 3 );
+// "{
+//    "b": 42,
+//    "c": "42",
+//    "d": [
+//       1,
+//       2,
+//       3
+//    ]
+// }"
+
+JSON.stringify( a, null, "-----" );
+// "{
+// -----"b": 42,
+// -----"c": "42",
+// -----"d": [
+// ----------1,
+// ----------2,
+// ----------3
+// -----]
+// }"
+```
+
+1. `string`, `number`, `boolean`, and `null` values all stringify for JSON basically the same as how they coerce to `string` values via the rules of the `ToString` abstract operation.
+2. If you pass an `object` value to `JSON.stringify(..)`, and that `object` has a `toJSON()` method on it, `toJSON()` is automatically called to (sort of) "coerce" the value to be *JSON-safe* before stringification.
+
+### `ToNumber`
+
+If any non-`number` value is used in a way that requires it to be a `number`, such as a mathematical operation, the ES5 spec defines the `ToNumber` abstract operation in section 9.3.
+
+For example, `true` becomes `1` and `false` becomes `0`. `undefined` becomes `NaN`, but (curiously) `null` becomes `0`.
+
+Consider:
+
+```js
+var a = {
+	valueOf: function(){
+		return "42";
+	}
+};
+
+var b = {
+	toString: function(){
+		return "42";
+	}
+};
+
+var c = [4,2];
+c.toString = function(){
+	return this.join( "" );	// "42"
+};
+
+Number( a );			// 42
+Number( b );			// 42
+Number( c );			// 42
+Number( "" );			// 0
+Number( [] );			// 0
+Number( [ "abc" ] );	// NaN
+```
+
+### `ToBoolean`
+
+#### Falsy Values
+
+But that's not the end of the story. We need to discuss how values other than the two `boolean`s behave whenever you coerce *to* their `boolean` equivalent.
+
+All of JavaScript's values can be divided into two categories:
+
+1. values that will become `false` if coerced to `boolean`
+2. everything else (which will obviously become `true`)
+From that table, we get the following as the so-called "falsy" values list:
+
+* `undefined`
+* `null`
+* `false`
+* `+0`, `-0`, and `NaN`
+* `""`
+**anything not explicitly on the falsy list is therefore truthy.**
+
+#### Falsy Objects
+A "falsy object" is a value that looks and acts like a normal object (properties, etc.), but when you coerce it to a `boolean`, it coerces to a `false` value.
+
+
+
+## Explicit Coercion
+
+*Explicit* coercion refers to type conversions that are obvious and explicit. There's a wide range of type conversion usage that clearly falls under the *explicit* coercion category for most developers.
+
+### Explicitly: Strings <--> Numbers
+
+```js
+var a = 42;
+var b = String( a );
+
+var c = "3.14";
+var d = Number( c );
+
+b; // "42"
+d; // 3.14
+```
+Besides `String(..)` and `Number(..)`, there are other ways to "explicitly" convert these values between `string` and `number`:
+
+```js
+var a = 42;
+var b = a.toString();
+
+var c = "3.14";
+var d = +c;
+
+b; // "42"
+d; // 3.14
+```
+
+You can probably dream up all sorts of hideous combinations of binary operators (like `+` for addition) next to the unary form of an operator. Here's another crazy example:
+
+```js
+1 + - + + + - + 1;	// 2
+```
+
+#### `Date` To `number`
+
+Another common usage of the unary `+` operator is to coerce a `Date` object into a `number`, because the result is the unix timestamp (milliseconds elapsed since 1 January 1970 00:00:00 UTC) representation of the date/time value:
+
+```js
+var d = new Date( "Mon, 18 Aug 2014 08:53:06 CDT" );
+
++d; // 1408369986000
+```
+The most common usage of this idiom is to get the current *now* moment as a timestamp, such as:
+
+```js
+var timestamp = +new Date();
+```
+
+I'd recommend skipping the coercion forms related to dates. Use `Date.now()` for current *now* timestamps, and `new Date( .. ).getTime()` for getting a timestamp of a specific *non-now* date/time that you need to specify.
+
+#### The Curious Case of the `~`
+One coercive JS operator that is often overlooked and usually very confused is the tilde `~` operator (aka "bitwise NOT"). Many of those who even understand what it does will often times still want to avoid it. But sticking to the spirit of our approach in this book and series, let's dig into it to find out if `~` has anything useful to give us.
+
+In the "32-bit (Signed) Integers" section of Chapter 2, we covered how bitwise operators in JS are defined only for 32-bit operations, which means they force their operands to conform to 32-bit value representations. The rules for how this happens are controlled by the `ToInt32` abstract operation (ES5 spec, section 9.5).
+
+`ToInt32` first does a `ToNumber` coercion, which means if the value is `"123"`, it's going to first become `123` before the `ToInt32` rules are applied.
+
+While not *technically* coercion itself (since the type doesn't change!), using bitwise operators (like `|` or `~`) with certain special `number` values produces a coercive effect that results in a different `number` value.
+
+For example, let's first consider the `|` "bitwise OR" operator used in the otherwise no-op idiom `0 | x`, which (as Chapter 2 showed) essentially only does the `ToInt32` conversion:
+
+```js
+0 | -0;			// 0
+0 | NaN;		// 0
+0 | Infinity;	// 0
+0 | -Infinity;	// 0
+```
+
+These special numbers aren't 32-bit representable (since they come from the 64-bit IEEE 754 standard -- see Chapter 2), so `ToInt32` just specifies `0` as the result from these values.
+
+It's pretty common to try to use `indexOf(..)` not just as an operation to get the position, but as a `boolean` check of presence/absence of a substring in another `string`. Here's how developers usually perform such checks:
+
+```js
+var a = "Hello World";
+
+if (a.indexOf( "lo" ) >= 0) {	// true
+	// found it!
+}
+if (a.indexOf( "lo" ) != -1) {	// true
+	// found it
+}
+
+if (a.indexOf( "ol" ) < 0) {	// true
+	// not found!
+}
+if (a.indexOf( "ol" ) == -1) {	// true
+	// not found!
+}
+```
+And now, finally, we see why `~` could help us! Using `~` with `indexOf()` "coerces" (actually just transforms) the value **to be appropriately `boolean`-coercible**:
+
+```js
+var a = "Hello World";
+
+~a.indexOf( "lo" );			// -4   <-- truthy!
+
+if (~a.indexOf( "lo" )) {	// true
+	// found it!
+}
+
+~a.indexOf( "ol" );			// 0    <-- falsy!
+!~a.indexOf( "ol" );		// true
+
+if (!~a.indexOf( "ol" )) {	// true
+	// not found!
+}
+```
+
+##### Truncating Bits
+There's one more place `~` may show up in code you run across: some developers use the double tilde `~~` to truncate the decimal part of a `number` (i.e., "coerce" it to a whole number "integer"). It's commonly (though mistakingly) said this is the same result as calling `Math.floor(..)`.
+
+How `~~` works is that the first `~` applies the `ToInt32` "coercion" and does the bitwise flip, and then the second `~` does another bitwise flip, flipping all the bits back to the original state. The end result is just the `ToInt32` "coercion" (aka truncation).
+
+**Note:** The bitwise double-flip of `~~` is very similar to the parity double-negate `!!` behavior, explained in the "Explicitly: * --> Boolean" section later.
+
+However, `~~` needs some caution/clarification. First, it only works reliably on 32-bit values. But more importantly, it doesn't work the same on negative numbers as `Math.floor(..)` does!
+
+```js
+Math.floor( -49.6 );	// -50
+~~-49.6;				// -49
+```
+
+### Explicitly: Parsing Numeric Strings
+Consider:
+
+```js
+var a = "42";
+var b = "42px";
+
+Number( a );	// 42
+parseInt( a );	// 42
+
+Number( b );	// NaN
+parseInt( b );	// 42
+```
+
+Parsing a numeric value out of a string is *tolerant* of non-numeric characters -- it just stops parsing left-to-right when encountered -- whereas coercion is *not tolerant* and fails resulting in the `NaN` value.
+
+Parsing should not be seen as a substitute for coercion. These two tasks, while similar, have different purposes. Parse a `string` as a `number` when you don't know/care what other non-numeric characters there may be on the right-hand side. Coerce a `string` (to a `number`) when the only acceptable values are numeric and something like `"42px"` should be rejected as a `number`.
+
+**Tip:** `parseInt(..)` has a twin, `parseFloat(..)`, which (as it sounds) pulls out a floating-point number from a string.
+
+Don't forget that `parseInt(..)` operates on `string` values. It makes absolutely no sense to pass a `number` value to `parseInt(..)`. Nor would it make sense to pass any other type of value, like `true`, `function(){..}` or `[1,2,3]`.
+
+If you pass a non-`string`, the value you pass will automatically be coerced to a `string` first (see "`ToString`" earlier), which would clearly be a kind of hidden *implicit* coercion. It's a really bad idea to rely upon such a behavior in your program, so never use `parseInt(..)` with a non-`string` value.
+
+Other examples of this behavior with `parseInt(..)` that may be surprising but are quite sensible include:
+
+```js
+parseInt( 0.000008 );		// 0   ("0" from "0.000008")
+parseInt( 0.0000008 );		// 8   ("8" from "8e-7")
+parseInt( false, 16 );		// 250 ("fa" from "false")
+parseInt( parseInt, 16 );	// 15  ("f" from "function..")
+
+parseInt( "0x10" );			// 16
+parseInt( "103", 2 );		// 2
+```
+
+`parseInt(..)` is actually pretty predictable and consistent in its behavior. If you use it correctly, you'll get sensible results. If you use it incorrectly, the crazy results you get are not the fault of JavaScript.
+
+### Explicitly: * --> Boolean
+Now, let's examine coercing from any non-`boolean` value to a `boolean`.
+
+Just like with `String(..)` and `Number(..)` above, `Boolean(..)` (without the `new`, of course!) is an explicit way of forcing the `ToBoolean` coercion:
+
+```js
+var a = "0";
+var b = [];
+var c = {};
+
+var d = "";
+var e = 0;
+var f = null;
+var g;
+
+Boolean( a ); // true
+Boolean( b ); // true
+Boolean( c ); // true
+
+Boolean( d ); // false
+Boolean( e ); // false
+Boolean( f ); // false
+Boolean( g ); // false
+```
+
+While `Boolean(..)` is clearly explicit, it's not at all common or idiomatic.
+
+Just like the unary `+` operator coerces a value to a `number` (see above), the unary `!` negate operator explicitly coerces a value to a `boolean`. The *problem* is that it also flips the value from truthy to falsy or vice versa. So, the most common way JS developers explicitly coerce to `boolean` is to use the `!!` double-negate operator, because the second `!` will flip the parity back to the original:
+
+```js
+var a = "0";
+var b = [];
+var c = {};
+
+var d = "";
+var e = 0;
+var f = null;
+var g;
+
+!!a;	// true
+!!b;	// true
+!!c;	// true
+
+!!d;	// false
+!!e;	// false
+!!f;	// false
+!!g;	// false
+```
 
 
 
