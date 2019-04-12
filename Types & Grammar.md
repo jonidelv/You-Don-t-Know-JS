@@ -658,3 +658,150 @@ The `null` type has just one value: `null`, and likewise the `undefined` type ha
 # Chapter 3: Natives
 
 
+* `String()`
+* `Number()`
+* `Boolean()`
+* `Array()`
+* `Object()`
+* `Function()`
+* `RegExp()`
+* `Date()`
+* `Error()`
+* `Symbol()` -- added in ES6!
+
+It *is* true that each of these natives can be used as a native constructor. But what's being constructed may be different than you think.
+
+```js
+var a = new String( "abc" );
+
+typeof a; // "object" ... not "String"
+
+a instanceof String; // true
+
+Object.prototype.toString.call( a ); // "[object String]"
+```
+
+The point is, `new String("abc")` creates a string wrapper object around `"abc"`, not just the primitive `"abc"` value itself.
+
+## Internal `[[Class]]`
+
+Values that are `typeof` `"object"` (such as an array) are additionally tagged with an internal `[[Class]]` property (think of this more as an internal *class*ification rather than related to classes from traditional class-oriented coding). This property cannot be accessed directly, but can generally be revealed indirectly by borrowing the default `Object.prototype.toString(..)` method called against the value. For example:
+
+```js
+Object.prototype.toString.call( [1,2,3] );			// "[object Array]"
+
+Object.prototype.toString.call( /regex-literal/i );	// "[object RegExp]"
+```
+
+So, for the array in this example, the internal `[[Class]]` value is `"Array"`, and for the regular expression, it's `"RegExp"`. In most cases, this internal `[[Class]]` value corresponds to the built-in native constructor (see below) that's related to the value, but that's not always the case.
+
+What about primitive values? First, `null` and `undefined`:
+
+```js
+Object.prototype.toString.call( null );			// "[object Null]"
+Object.prototype.toString.call( undefined );	// "[object Undefined]"
+```
+
+You'll note that there are no `Null()` or `Undefined()` native constructors, but nevertheless the `"Null"` and `"Undefined"` are the internal `[[Class]]` values exposed.
+
+But for the other simple primitives like `string`, `number`, and `boolean`, another behavior actually kicks in, which is usually called "boxing" (see "Boxing Wrappers" section next):
+
+```js
+Object.prototype.toString.call( "abc" );	// "[object String]"
+Object.prototype.toString.call( 42 );		// "[object Number]"
+Object.prototype.toString.call( true );		// "[object Boolean]"
+```
+
+In this snippet, each of the simple primitives are automatically boxed by their respective object wrappers, which is why `"String"`, `"Number"`, and `"Boolean"` are revealed as the respective internal `[[Class]]` values.
+
+## Boxing Wrappers
+
+These object wrappers serve a very important purpose. Primitive values don't have properties or methods, so to access `.length` or `.toString()` you need an object wrapper around the value. Thankfully, JS will automatically *box* (aka wrap) the primitive value to fulfill such accesses.
+
+```js
+var a = "abc";
+
+a.length; // 3
+a.toUpperCase(); // "ABC"
+```
+
+In general, there's basically no reason to use the object form directly. It's better to just let the boxing happen implicitly where necessary. In other words, never do things like `new String("abc")`, `new Number(42)`, etc -- always prefer using the literal primitive values `"abc"` and `42`.
+
+### Object Wrapper Gotchas
+
+There are some gotchas with using the object wrappers directly that you should be aware of if you *do* choose to ever use them.
+
+For example, consider `Boolean` wrapped values:
+
+```js
+var a = new Boolean( false );
+
+if (!a) {
+	console.log( "Oops" ); // never runs
+}
+```
+
+The problem is that you've created an object wrapper around the `false` value, but objects themselves are "truthy"
+
+If you want to manually box a primitive value, you can use the `Object(..)` function (no `new` keyword):
+
+```js
+var a = "abc";
+var b = new String( a );
+var c = Object( a );
+
+typeof a; // "string"
+typeof b; // "object"
+typeof c; // "object"
+
+b instanceof String; // true
+c instanceof String; // true
+
+Object.prototype.toString.call( b ); // "[object String]"
+Object.prototype.toString.call( c ); // "[object String]"
+```
+
+Again, using the boxed object wrapper directly (like `b` and `c` above) is usually discouraged, but there may be some rare occasions you'll run into where they may be useful.
+
+## Unboxing
+
+If you have an object wrapper and you want to get the underlying primitive value out, you can use the `valueOf()` method:
+
+```js
+var a = new String( "abc" );
+var b = new Number( 42 );
+var c = new Boolean( true );
+
+a.valueOf(); // "abc"
+b.valueOf(); // 42
+c.valueOf(); // true
+```
+
+Unboxing can also happen implicitly, when using an object wrapper value in a way that requires the primitive value. This process (coercion) will be covered in more detail in Chapter 4, but briefly:
+
+```js
+var a = new String( "abc" );
+var b = a + ""; // `b` has the unboxed primitive value "abc"
+
+typeof a; // "object"
+typeof b; // "string"
+
+## Natives as Constructors
+
+For `array`, `object`, `function`, and regular-expression values, it's almost universally preferred that you use the literal form for creating the values, but the literal form creates the same sort of object as the constructor form does (that is, there is no nonwrapped value).
+
+Just as we've seen above with the other natives, these constructor forms should generally be avoided, unless you really know you need them, mostly because they introduce exceptions and gotchas that you probably don't really *want* to deal with.
+
+### `Array(..)`
+
+```js
+var a = new Array( 1, 2, 3 );
+a; // [1, 2, 3]
+
+var b = [1, 2, 3];
+b; // [1, 2, 3]
+```
+
+**Note:** The `Array(..)` constructor does not require the `new` keyword in front of it. If you omit it, it will behave as if you have used it anyway. So `Array(1,2,3)` is the same outcome as `new Array(1,2,3)`.
+
+
