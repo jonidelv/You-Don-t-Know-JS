@@ -1423,7 +1423,673 @@ var g;
 !!g;	// false
 ```
 
+## Implicit Coercion
 
+*Implicit* coercion refers to type conversions that are hidden, with non-obvious side-effects that implicitly occur from other actions. In other words, *implicit coercions* are any type conversions that aren't obvious (to you).
+
+### Implicitly: Strings <--> Numbers
+
+Earlier in this chapter, we explored *explicitly* coercing between `string` and `number` values. Now, let's explore the same task but with *implicit* coercion approaches. But before we do, we have to examine some nuances of operations that will *implicitly* force coercion.
+
+The `+` operator is overloaded to serve the purposes of both `number` addition and `string` concatenation. So how does JS know which type of operation you want to use? Consider:
+
+```js
+var a = "42";
+var b = "0";
+
+var c = 42;
+var d = 0;
+
+a + b; // "420"
+c + d; // 42
+```
+
+What's different that causes `"420"` vs `42`
+
+if either operand to `+` is a `string` (or becomes one with the above steps!), the operation will be `string` concatenation. Otherwise, it's always numeric addition.
+
+What's that mean for *implicit* coercion?
+
+You can coerce a `number` to a `string` simply by "adding" the `number` and the `""` empty `string`:
+
+```js
+var a = 42;
+var b = a + "";
+
+b; // "42"
+```
+
+**Tip:** Numeric addition with the `+` operator is commutative, which means `2 + 3` is the same as `3 + 2`. String concatenation with `+` is obviously not generally commutative, **but** with the specific case of `""`, it's effectively commutative, as `a + ""` and `"" + a` will produce the same result.
+
+Consider:
+
+```js
+var a = {
+	valueOf: function() { return 42; },
+	toString: function() { return 4; }
+};
+
+a + "";			// "42"
+
+String( a );	// "4"
+```
+
+Generally, this sort of gotcha won't bite you unless you're really trying to create confusing data structures and operations, but you should be careful if you're defining both your own `valueOf()` and `toString()` methods for some `object`, as how you coerce the value could affect the outcome.
+
+What about the other direction? How can we *implicitly coerce* from `string` to `number`?
+
+```js
+var a = "3.14";
+var b = a - 0;
+
+b; // 3.14
+```
+
+The `-` operator is defined only for numeric subtraction, so `a - 0` forces `a`'s value to be coerced to a `number`. While far less common, `a * 1` or `a / 1` would accomplish the same result, as those operators are also only defined for numeric operations.
+
+What about `object` values with the `-` operator? Similar story as for `+` above:
+
+```js
+var a = [3];
+var b = [1];
+
+a - b; // 2
+```
+
+Compare `b = String(a)` (*explicit*) to `b = a + ""` (*implicit*).
+
+### Implicitly: * --> Boolean
+
+
+1. The test expression in an `if (..)` statement.
+2. The test expression (second clause) in a `for ( .. ; .. ; .. )` header.
+3. The test expression in `while (..)` and `do..while(..)` loops.
+4. The test expression (first clause) in `? :` ternary expressions.
+5. The left-hand operand (which serves as a test expression -- see below!) to the `||` ("logical or") and `&&` ("logical and") operators.
+
+Any value used in these contexts that is not already a `boolean` will be *implicitly* coerced to a `boolean` using the rules of the `ToBoolean` abstract operation covered earlier in this chapter.
+
+Let's look at some examples:
+
+```js
+var a = 42;
+var b = "abc";
+var c;
+var d = null;
+
+if (a) {
+	console.log( "yep" );		// yep
+}
+
+while (c) {
+	console.log( "nope, never runs" );
+}
+
+c = d ? a : b;
+c;					// "abc"
+
+if ((a && d) || c) {
+	console.log( "yep" );		// yep
+}
+```
+
+
+### Operators `||` and `&&`
+
+> The value produced by a && or || operator is not necessarily of type Boolean. The value produced will always be the value of one of the two operand expressions.
+
+Let's illustrate:
+
+```js
+var a = 42;
+var b = "abc";
+var c = null;
+
+a || b;		// 42
+a && b;		// "abc"
+
+c || b;		// "abc"
+c && b;		// null
+```
+
+**Wait, what!?** Think about that. In languages like C and PHP, those expressions result in `true` or `false`, but in JS (and Python and Ruby, for that matter!), the result comes from the values themselves.
+
+Both `||` and `&&` operators perform a `boolean` test on the **first operand** (`a` or `c`). If the operand is not already `boolean` (as it's not, here), a normal `ToBoolean` coercion occurs, so that the test can be performed.
+
+For the `||` operator, if the test is `true`, the `||` expression results in the value of the *first operand* (`a` or `c`). If the test is `false`, the `||` expression results in the value of the *second operand* (`b`).
+
+Inversely, for the `&&` operator, if the test is `true`, the `&&` expression results in the value of the *second operand* (`b`). If the test is `false`, the `&&` expression results in the value of the *first operand* (`a` or `c`).
+
+The result of a `||` or `&&` expression is always the underlying value of one of the operands, **not** the (possibly coerced) result of the test. In `c && b`, `c` is `null`, and thus falsy. But the `&&` expression itself results in `null` (the value in `c`), not in the coerced `false` used in the test.
+
+Do you see how these operators act as "operand selectors", now?
+
+Another way of thinking about these operators:
+
+```js
+a || b;
+// roughly equivalent to:
+a ? a : b;
+
+a && b;
+// roughly equivalent to:
+a ? b : a;
+
+An extremely common and helpful usage of this behavior, which there's a good chance you may have used before and not fully understood, is:
+
+```js
+function foo(a,b) {
+	a = a || "hello";
+	b = b || "world";
+
+	console.log( a + " " + b );
+}
+
+foo();					// "hello world"
+foo( "yeah", "yeah!" );	// "yeah yeah!"
+```
+
+The `a = a || "hello"` idiom (sometimes said to be JavaScript's version of the C# "null coalescing operator") acts to test `a` and if it has no value (or only an undesired falsy value), provides a backup default value (`"hello"`).
+
+**Be careful**, though!
+
+```js
+foo( "That's it!", "" ); // "That's it! world" <-- Oops!
+```
+
+See the problem? `""` as the second argument is a falsy value (see `ToBoolean` earlier in this chapter), so the `b = b || "world"` test fails, and the `"world"` default value is substituted, even though the intent probably was to have the explicitly passed `""` be the value assigned to `b`.
+
+What about `&&`?
+
+There's another idiom that is quite a bit less commonly authored manually, but which is used by JS minifiers frequently. The `&&` operator "selects" the second operand if and only if the first operand tests as truthy, and this usage is sometimes called the "guard operator" (also see "Short Circuited" in Chapter 5) -- the first expression test "guards" the second expression:
+
+```js
+function foo() {
+	console.log( a );
+}
+
+var a = 42;
+
+a && foo(); // 42
+```
+Consider:
+
+```js
+var a = 42;
+var b = null;
+var c = "foo";
+
+if (a && (b || c)) {
+	console.log( "yep" );
+}
+```
+
+This code still works the way you always thought it did, except for one subtle extra detail. The `a && (b || c)` expression *actually* results in `"foo"`, not `true`. So, the `if` statement *then* forces the `"foo"` value to coerce to a `boolean`, which of course will be `true`.
+
+### Symbol Coercion
+
+For reasons that go well beyond the scope of what we'll discuss in this book, *explicit* coercion of a `symbol` to a `string` is allowed, but *implicit* coercion of the same is disallowed and throws an error.
+
+Consider:
+
+```js
+var s1 = Symbol( "cool" );
+String( s1 );					// "Symbol(cool)"
+
+var s2 = Symbol( "not cool" );
+s2 + "";						// TypeError
+```
+
+`symbol` values cannot coerce to `number` at all (throws an error either way), but strangely they can both *explicitly* and *implicitly* coerce to `boolean` (always `true`).
+
+## Loose Equals vs. Strict Equals
+
+A very common misconception about these two operators is: "`==` checks values for equality and `===` checks both values and types for equality." While that sounds nice and reasonable, it's inaccurate. Countless well-respected JavaScript books and blogs have said exactly that, but unfortunately they're all *wrong*.
+
+The correct description is: "`==` allows coercion in the equality comparison and `===` disallows coercion."
+
+### Equality Performance
+
+What you should be asking yourself is: when comparing these two values, do I want coercion or not?
+
+If you want coercion, use `==` loose equality, but if you don't want coercion, use `===` strict equality.
+
+### Abstract Equality
+
+Basically, the first clause (11.9.3.1) says, if the two values being compared are of the same type, they are simply and naturally compared via Identity as you'd expect. For example, `42` is only equal to `42`, and `"abc"` is only equal to `"abc"`.
+
+Some minor exceptions to normal expectation to be aware of:
+
+* `NaN` is never equal to itself (see Chapter 2)
+* `+0` and `-0` are equal to each other (see Chapter 2)
+
+The final provision in clause 11.9.3.1 is for `==` loose equality comparison with `object`s (including `function`s and `array`s). Two such values are only *equal* if they are both references to *the exact same value*. No coercion occurs here.
+
+**Note:** The `===` strict equality comparison is defined identically to 11.9.3.1, including the provision about two `object` values. It's a very little known fact that **`==` and `===` behave identically** in the case where two `object`s are being compared!
+
+**Note:** The `!=` loose not-equality operation is defined exactly as you'd expect, in that it's literally the `==` operation comparison performed in its entirety, then the negation of the result. The same goes for the `!==` strict not-equality operation.
+
+#### Comparing: `string`s to `number`s
+
+To illustrate `==` coercion, let's first build off the `string` and `number` examples earlier in this chapter:
+
+```js
+var a = 42;
+var b = "42";
+
+a === b;	// false
+a == b;		// true
+```
+
+As we'd expect, `a === b` fails, because no coercion is allowed, and indeed the `42` and `"42"` values are different.
+
+However, the second comparison `a == b` uses loose equality, which means that if the types happen to be different, the comparison algorithm will perform *implicit* coercion on one or both values.
+
+But exactly what kind of coercion happens here? Does the `a` value of `42` become a `string`, or does the `b` value of `"42"` become a `number`?
+
+In the ES5 spec, clauses 11.9.3.4-5 say:
+
+> 4. If Type(x) is Number and Type(y) is String,
+>    return the result of the comparison x == ToNumber(y).
+> 5. If Type(x) is String and Type(y) is Number,
+>    return the result of the comparison ToNumber(x) == y.
+
+#### Comparing: anything to `boolean`
+
+One of the biggest gotchas with the *implicit* coercion of `==` loose equality pops up when you try to compare a value directly to `true` or `false`.
+
+Consider:
+
+```js
+var a = "42";
+var b = true;
+
+a == b;	// false
+```
+
+Let's break that down. First:
+
+```js
+var x = true;
+var y = "42";
+
+x == y; // false
+```
+
+The `Type(x)` is indeed `Boolean`, so it performs `ToNumber(x)`, which coerces `true` to `1`. Now, `1 == "42"` is evaluated. The types are still different, so (essentially recursively) we reconsult the algorithm, which just as above will coerce `"42"` to `42`, and `1 == 42` is clearly `false`.
+
+Reverse it, and we still get the same outcome:
+
+```js
+var x = "42";
+var y = false;
+
+x == y; // false
+```
+
+What *is* relevant is to understand how the `==` comparison algorithm behaves with all the different type combinations. As it regards a `boolean` value on either side of the `==`, a `boolean` always coerces to a `number` *first*.
+
+If that seems strange to you, you're not alone. I personally would recommend to never, ever, under any circumstances, use `== true` or `== false`. Ever.
+
+But remember, I'm only talking about `==` here. `=== true` and `=== false` wouldn't allow the coercion, so they're safe from this hidden `ToNumber` coercion.
+
+Consider:
+
+```js
+var a = "42";
+
+// bad (will fail!):
+if (a == true) {
+	// ..
+}
+
+// also bad (will fail!):
+if (a === true) {
+	// ..
+}
+
+// good enough (works implicitly):
+if (a) {
+	// ..
+}
+
+// better (works explicitly):
+if (!!a) {
+	// ..
+}
+
+// also great (works explicitly):
+if (Boolean( a )) {
+	// ..
+}
+```
+
+If you avoid ever using `== true` or `== false` (aka loose equality with `boolean`s) in your code, you'll never have to worry about this truthiness/falsiness mental gotcha.
+
+#### Comparing: `null`s to `undefined`s
+
+Another example of *implicit* coercion can be seen with `==` loose equality between `null` and `undefined` values. Yet again quoting the ES5 spec, clauses 11.9.3.2-3:
+
+> 2. If x is null and y is undefined, return true.
+> 3. If x is undefined and y is null, return true.
+
+`null` and `undefined`, when compared with `==` loose equality, equate to (aka coerce to) each other (as well as themselves, obviously), and no other values in the entire language.
+
+What this means is that `null` and `undefined` can be treated as indistinguishable for comparison purposes, if you use the `==` loose equality operator to allow their mutual *implicit* coercion.
+
+```js
+var a = null;
+var b;
+
+a == b;		// true
+a == null;	// true
+b == null;	// true
+
+a == false;	// false
+b == false;	// false
+a == "";	// false
+b == "";	// false
+a == 0;		// false
+b == 0;		// false
+```
+
+The coercion between `null` and `undefined` is safe and predictable, and no other values can give false positives in such a check. I recommend using this coercion to allow `null` and `undefined` to be indistinguishable and thus treated as the same value.
+
+For example:
+
+```js
+var a = doSomething();
+
+if (a == null) {
+	// ..
+}
+```
+
+The `a == null` check will pass only if `doSomething()` returns either `null` or `undefined`, and will fail with any other value, even other falsy values like `0`, `false`, and `""`.
+
+The *explicit* form of the check, which disallows any such coercion, is (I think) unnecessarily much uglier (and perhaps a tiny bit less performant!):
+
+```js
+var a = doSomething();
+
+if (a === undefined || a === null) {
+	// ..
+}
+```
+
+In my opinion, the form `a == null` is yet another example where *implicit* coercion improves code readability, but does so in a reliably safe way.
+
+#### Comparing: `object`s to non-`object`s
+
+If an `object`/`function`/`array` is compared to a simple scalar primitive (`string`, `number`, or `boolean`), the ES5 spec says in clauses 11.9.3.8-9:
+
+> 8. If Type(x) is either String or Number and Type(y) is Object,
+>    return the result of the comparison x == ToPrimitive(y).
+> 9. If Type(x) is Object and Type(y) is either String or Number,
+>    return the result of the comparison ToPrimitive(x) == y.
+
+Consider:
+
+```js
+var a = 42;
+var b = [ 42 ];
+
+a == b;	// true
+```
+
+The `[ 42 ]` value has its `ToPrimitive` abstract operation called (see the "Abstract Value Operations" section earlier), which results in the `"42"` value. From there, it's just `42 == "42"`, which as we've already covered becomes `42 == 42`, so `a` and `b` are found to be coercively equal.
+
+**Tip:** All the quirks of the `ToPrimitive` abstract operation that we discussed earlier in this chapter (`toString()`, `valueOf()`) apply here as you'd expect. This can be quite useful if you have a complex data structure that you want to define a custom `valueOf()` method on, to provide a simple value for equality comparison purposes.
+
+```js
+var a = "abc";
+var b = Object( a );	// same as `new String( a )`
+
+a === b;				// false
+a == b;					// true
+```
+
+`a == b` is `true` because `b` is coerced (aka "unboxed," unwrapped) via `ToPrimitive` to its underlying `"abc"` simple scalar primitive value, which is the same as the value in `a`.
+
+There are some values where this is not the case, though, because of other overriding rules in the `==` algorithm. Consider:
+
+```js
+var a = null;
+var b = Object( a );	// same as `Object()`
+a == b;					// false
+
+var c = undefined;
+var d = Object( c );	// same as `Object()`
+c == d;					// false
+
+var e = NaN;
+var f = Object( e );	// same as `new Number( e )`
+e == f;					// false
+```
+
+The `null` and `undefined` values cannot be boxed -- they have no object wrapper equivalent -- so `Object(null)` is just like `Object()` in that both just produce a normal object.
+
+`NaN` can be boxed to its `Number` object wrapper equivalent, but when `==` causes an unboxing, the `NaN == NaN` comparison fails because `NaN` is never equal to itself (see Chapter 2).
+
+### Edge Cases
+
+#### A Number By Any Other Value Would...
+
+```js
+Number.prototype.valueOf = function() {
+	return 3;
+};
+
+new Number( 2 ) == 3;	// true
+```
+
+**Warning:** `2 == 3` would not have fallen into this trap, because neither `2` nor `3` would have invoked the built-in `Number.prototype.valueOf()` method because both are already primitive `number` values and can be compared directly. However, `new Number(2)` must go through the `ToPrimitive` coercion, and thus invoke `valueOf()`.
+
+Evil, huh? Of course it is. No one should ever do such a thing. The fact that you *can* do this is sometimes used as a criticism of coercion and `==`. But that's misdirected frustration. JavaScript is not *bad* because you can do such things, a developer is *bad* **if they do such things**. Don't fall into the "my programming language should protect me from myself" fallacy.
+
+#### False-y Comparisons
+
+To illustrate, let's look at a list of the corner-cases around falsy value comparisons, to see which ones are reasonable and which are troublesome:
+
+```js
+"0" == null;			// false
+"0" == undefined;		// false
+"0" == false;			// true -- UH OH!
+"0" == NaN;				// false
+"0" == 0;				// true
+"0" == "";				// false
+
+false == null;			// false
+false == undefined;		// false
+false == NaN;			// false
+false == 0;				// true -- UH OH!
+false == "";			// true -- UH OH!
+false == [];			// true -- UH OH!
+false == {};			// false
+
+"" == null;				// false
+"" == undefined;		// false
+"" == NaN;				// false
+"" == 0;				// true -- UH OH!
+"" == [];				// true -- UH OH!
+"" == {};				// false
+
+0 == null;				// false
+0 == undefined;			// false
+0 == NaN;				// false
+0 == [];				// true -- UH OH!
+0 == {};				// false
+```
+
+#### The Crazy Ones
+
+```js
+[] == ![];		// true
+```
+
+How about other corner cases?
+
+```js
+2 == [2];		// true
+"" == [null];	// true
+```
+
+As we said earlier in our `ToNumber` discussion, the right-hand side `[2]` and `[null]` values will go through a `ToPrimitive` coercion so they can be more readily compared to the simple primitives (`2` and `""`, respectively) on the left-hand side. Since the `valueOf()` for `array` values just returns the `array` itself, coercion falls to stringifying the `array`.
+
+`[2]` will become `"2"`, which then is `ToNumber` coerced to `2` for the right-hand side value in the first comparison. `[null]` just straight becomes `""`.
+
+So, `2 == 2` and `"" == ""` are completely understandable.
+
+If your instinct is to still dislike these results, your frustration is not actually with coercion like you probably think it is. It's actually a complaint against the default `array` values' `ToPrimitive` behavior of coercing to a `string` value. More likely, you'd just wish that `[2].toString()` didn't return `"2"`, or that `[null].toString()` didn't return `""`.
+
+Another famously cited gotcha:
+
+```js
+0 == "\n";		// true
+```
+
+As we discussed earlier with empty `""`, `"\n"` (or `" "` or any other whitespace combination) is coerced via `ToNumber`, and the result is `0`. What other `number` value would you expect whitespace to coerce to? Does it bother you that *explicit* `Number(" ")` yields `0`?
+
+Really the only other reasonable `number` value that empty strings or whitespace strings could coerce to is the `NaN`. But would that *really* be better? The comparison `" " == NaN` would of course fail, but it's unclear that we'd have really *fixed* any of the underlying concerns.
+
+The chances that a real-world JS program fails because `0 == "\n"` are awfully rare, and such corner cases are easy to avoid.
+
+Type conversions **always** have corner cases, in any language -- nothing specific to coercion. The issues here are about second-guessing a certain set of corner cases (and perhaps rightly so!?), but that's not a salient argument against the overall coercion mechanism.
+
+To contrast against these 24 likely suspects for coercion gotchas, consider another list like this:
+
+```js
+42 == "43";							// false
+"foo" == 42;						// false
+"true" == true;						// false
+
+42 == "42";							// true
+"foo" == [ "foo" ];					// true
+```
+
+In these nonfalsy, noncorner cases (and there are literally an infinite number of comparisons we could put on this list), the coercion results are totally safe, reasonable, and explainable.
+
+#### Sanity Check
+
+Let's look again at the *bad* list:
+
+```js
+"0" == false;			// true -- UH OH!
+false == 0;				// true -- UH OH!
+false == "";			// true -- UH OH!
+false == [];			// true -- UH OH!
+"" == 0;				// true -- UH OH!
+"" == [];				// true -- UH OH!
+0 == [];				// true -- UH OH!
+```
+
+
+#### Safely Using Implicit Coercion
+
+The most important advice I can give you: examine your program and reason about what values can show up on either side of an `==` comparison. To effectively avoid issues with such comparisons, here's some heuristic rules to follow:
+
+1. If either side of the comparison can have `true` or `false` values, don't ever, EVER use `==`.
+2. If either side of the comparison can have `[]`, `""`, or `0` values, seriously consider not using `==`.
+
+In these scenarios, it's almost certainly better to use `===` instead of `==`, to avoid unwanted coercion. Follow those two simple rules and pretty much all the coercion gotchas that could reasonably hurt you will effectively be avoided.
+
+The question of `==` vs. `===` is really appropriately framed as: should you allow coercion for a comparison or not?
+
+**Tip:** Another place where coercion is guaranteed *not* to bite you is with the `typeof` operator. `typeof` is always going to return you one of seven strings (see Chapter 1), and none of them are the empty `""` string. As such, there's no case where checking the type of some value is going to run afoul of *implicit* coercion. `typeof x == "function"` is 100% as safe and reliable as `typeof x === "function"`. Literally, the spec says the algorithm will be identical in this situation. So, don't just blindly use `===` everywhere simply because that's what your code tools tell you to do, or (worst of all) because you've been told in some book to **not think about it**. You own the quality of your code.
+
+Here's a handy table made by Alex Dorey (@dorey on GitHub) to visualize a variety of comparisons:
+
+<img src="fig1.png" width="600">
+
+Source: https://github.com/dorey/JavaScript-Equality-Table
+
+## Abstract Relational Comparison
+
+While this part of *implicit* coercion often gets a lot less attention, it's important nonetheless to think about what happens with `a < b` comparisons (similar to how we just examined `a == b` in depth).
+
+The "Abstract Relational Comparison" algorithm in ES5 section 11.8.5 essentially divides itself into two parts: what to do if the comparison involves both `string` values (second half), or anything else (first half).
+
+**Note:** The algorithm is only defined for `a < b`. So, `a > b` is handled as `b < a`.
+
+The algorithm first calls `ToPrimitive` coercion on both values, and if the return result of either call is not a `string`, then both values are coerced to `number` values using the `ToNumber` operation rules, and compared numerically.
+
+For example:
+
+```js
+var a = [ 42 ];
+var b = [ "43" ];
+
+a < b;	// true
+b < a;	// false
+```
+
+**Note:** Similar caveats for `-0` and `NaN` apply here as they did in the `==` algorithm discussed earlier.
+
+However, if both values are `string`s for the `<` comparison, simple lexicographic (natural alphabetic) comparison on the characters is performed:
+
+```js
+var a = [ "42" ];
+var b = [ "043" ];
+
+a < b;	// false
+```
+
+`a` and `b` are *not* coerced to `number`s, because both of them end up as `string`s after the `ToPrimitive` coercion on the two `array`s. So, `"42"` is compared character by character to `"043"`, starting with the first characters `"4"` and `"0"`, respectively. Since `"0"` is lexicographically *less than* than `"4"`, the comparison returns `false`.
+
+The exact same behavior and reasoning goes for:
+
+```js
+var a = [ 4, 2 ];
+var b = [ 0, 4, 3 ];
+
+a < b;	// false
+```
+
+Here, `a` becomes `"4,2"` and `b` becomes `"0,4,3"`, and those lexicographically compare identically to the previous snippet.
+
+What about:
+
+```js
+var a = { b: 42 };
+var b = { b: 43 };
+
+a < b;	// ??
+```
+
+`a < b` is also `false`, because `a` becomes `[object Object]` and `b` becomes `[object Object]`, and so clearly `a` is not lexicographically less than `b`.
+
+But strangely:
+
+```js
+var a = { b: 42 };
+var b = { b: 43 };
+
+a < b;	// false
+a == b;	// false
+a > b;	// false
+
+a <= b;	// true
+a >= b;	// true
+```
+Why is `a == b` not `true`? They're the same `string` value (`"[object Object]"`), so it seems they should be equal, right? Nope. Recall the previous discussion about how `==` works with `object` references.
+
+But then how are `a <= b` and `a >= b` resulting in `true`, if `a < b` **and** `a == b` **and** `a > b` are all `false`?
+
+Because the spec says for `a <= b`, it will actually evaluate `b < a` first, and then negate that result. Since `b < a` is *also* `false`, the result of `a <= b` is `true`.
+
+That's probably awfully contrary to how you might have explained what `<=` does up to now, which would likely have been the literal: "less than *or* equal to." JS more accurately considers `<=` as "not greater than" (`!(a > b)`, which JS treats as `!(b < a)`). Moreover, `a >= b` is explained by first considering it as `b <= a`, and then applying the same reasoning.
+
+Unfortunately, there is no "strict relational comparison" as there is for equality. In other words, there's no way to prevent *implicit* coercion from occurring with relational comparisons like `a < b`, other than to ensure that `a` and `b` are of the same type explicitly before making the comparison.
+
+Use the same reasoning from our earlier `==` vs. `===` sanity check discussion. If coercion is helpful and reasonably safe, like in a `42 < "43"` comparison, **use it**. On the other hand, if you need to be safe about a relational comparison, *explicitly coerce* the values first, before using `<` (or its counterparts).
+
+```js
+var a = [ 42 ];
+var b = "043";
+
+a < b;						// false -- string comparison!
+Number( a ) < Number( b );	// true -- number comparison!
+```
 
 
 
