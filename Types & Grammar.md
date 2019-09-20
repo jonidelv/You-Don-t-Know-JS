@@ -2677,3 +2677,674 @@ In general, operators are either left-associative or right-associative, referrin
 It's important to note that associativity is *not* the same thing as left-to-right or right-to-left processing.
 
 
+Here, `foo()` is evaluated first, and then possibly `bar()` depending on the result of the `foo()` expression. That definitely could result in different program behavior than if `bar()` was called before `foo()`.
+
+But with an expression like `a && b && c`, grouping *will* happen implicitly, meaning that either `a && b` or `b && c` will be evaluated first.
+
+Technically, `a && b && c` will be handled as `(a && b) && c`, because `&&` is left-associative (so is `||`, by the way). However, the right-associative alternative `a && (b && c)` behaves observably the same way. For the same values, the same expressions are evaluated in the same order.
+
+So it doesn't really matter that much that `&&` and `||` are left-associative, other than to be accurate in how we discuss their definitions.
+
+But that's not always the case. Some operators would behave very differently depending on left-associativity vs. right-associativity.
+
+Consider the `? :` ("ternary" or "conditional") operator:
+
+```js
+a ? b : c ? d : e;
+```
+
+`? :` is right-associative, so which grouping represents how it will be processed?
+
+* `a ? b : (c ? d : e)`
+* `(a ? b : c) ? d : e`
+
+The answer is `a ? b : (c ? d : e)`. Unlike with `&&` and `||` above, the right-associativity here actually matters, as `(a ? b : c) ? d : e` *will* behave differently for some (but not all!) combinations of values.
+
+One such example:
+
+```js
+true ? false : true ? true : true;		// false
+
+true ? false : (true ? true : true);	// false
+(true ? false : true) ? true : true;	// true
+```
+
+Even more nuanced differences lurk with other value combinations, even if the end result is the same. Consider:
+
+```js
+true ? false : true ? true : false;		// false
+
+true ? false : (true ? true : false);	// false
+(true ? false : true) ? true : false;	// false
+```
+
+From that scenario, the same end result implies that the grouping is moot. However:
+
+```js
+var a = true, b = false, c = true, d = true, e = false;
+
+a ? b : (c ? d : e); // false, evaluates only `a` and `b`
+(a ? b : c) ? d : e; // false, evaluates `a`, `b` AND `e`
+```
+
+So, we've clearly proved that `? :` is right-associative, and that it actually matters with respect to how the operator behaves if chained with itself.
+
+Another example of right-associativity (grouping) is the `=` operator. Recall the chained assignment example from earlier in the chapter:
+
+```js
+var a, b, c;
+
+a = b = c = 42;
+```
+
+We asserted earlier that `a = b = c = 42` is processed by first evaluating the `c = 42` assignment, then `b = ..`, and finally `a = ..`. Why? Because of the right-associativity, which actually treats the statement like this: `a = (b = (c = 42))`.
+
+Remember our running complex assignment expression example from earlier in the chapter?
+
+```js
+var a = 42;
+var b = "foo";
+var c = false;
+
+var d = a && b || c ? c || b ? a : c && b : a;
+
+d;		// 42
+```
+
+Let's solve it now:
+
+1. `(a && b)` is `"foo"`.
+2. `"foo" || c` is `"foo"`.
+3. For the first `?` test, `"foo"` is truthy.
+4. `(c || b)` is `"foo"`.
+5. For the second `?` test, `"foo"` is truthy.
+6. `a` is `42`.
+
+### Disambiguation
+
+For example, `if (a && b && c) ..` is perfectly OK to me, and I wouldn't do `if ((a && b) && c) ..` just to explicitly call out the associativity, because I think it's overly verbose.
+
+## Automatic Semicolons
+
+```js
+var a = 42, b
+c;
+```
+
+Should JS treat the `c` on the next line as part of the `var` statement? It certainly would if a `,` had come anywhere (even another line) between `b` and `c`. But since there isn't one, JS assumes instead that there's an implied `;` (at the newline) after `b`. Thus, `c;` is left as a standalone expression statement.
+
+Similarly:
+
+```js
+var a = 42, b = "foo";
+
+a
+b	// "foo"
+```
+
+```js
+var a = 42;
+
+do {
+	// ..
+} while (a)	// <-- ; expected here!
+a;
+```
+
+The grammar requires a `;` after a `do..while` loop, but not after `while` or `for` loops. But most developers don't remember that! So, ASI helpfully steps in and inserts one.
+
+As we said earlier in the chapter, statement blocks do not require `;` termination, so ASI isn't necessary:
+
+```js
+var a = 42;
+
+while (a) {
+	// ..
+} // <-- no ; expected here
+a;
+```
+
+```js
+function foo(a) {
+	return (
+		a * 2 + 3 / 12
+	);
+}
+```
+
+### Error Correction
+
+One of the most hotly contested *religious wars* in the JS community (besides tabs vs. spaces) is whether to rely heavily/exclusively on ASI or not.
+
+Most, but not all, semicolons are optional, but the two `;`s in the `for ( .. ) ..` loop header are required.
+
+My take: **use semicolons wherever you know they are "required," and limit your assumptions about ASI to a minimum.**
+
+## Errors
+
+Not only does JavaScript have different *subtypes* of errors (`TypeError`, `ReferenceError`, `SyntaxError`, etc.), but also the grammar defines certain errors to be enforced at compile time, as compared to all other errors that happen during runtime.
+
+**Tip:** There's no requirement in the spec about exactly how browsers (and developer tools) should report errors. So you may see variations across browsers in the following error examples, in what specific subtype of error is reported or what the included error message text will be.
+
+**Note:** Semantically speaking, such errors aren't technically *syntax* errors but more *grammar* errors -- the above snippets are syntactically valid. But since there is no `GrammarError` type, some browsers use `SyntaxError` instead.
+
+### Using Variables Too Early
+
+ES6 defines a (frankly confusingly named) new concept called the TDZ ("Temporal Dead Zone").
+
+```js
+{
+	a = 2;		// ReferenceError!
+	let a;
+}
+```
+
+The assignment `a = 2` is accessing the `a` variable (which is indeed block-scoped to the `{ .. }` block) before it's been initialized by the `let a` declaration, so it's in the TDZ for `a` and throws an error.
+
+Interestingly, while `typeof` has an exception to be safe for undeclared variables (see Chapter 1), no such safety exception is made for TDZ references:
+
+```js
+{
+	typeof a;	// undefined
+	typeof b;	// ReferenceError! (TDZ)
+	let b;
+}
+```
+
+## Function Arguments
+
+Another example of a TDZ violation can be seen with ES6 default parameter values (see the *ES6 & Beyond* title of this series):
+
+```js
+var b = 3;
+
+function foo( a = 42, b = a + b + 5 ) {
+	// ..
+}
+```
+
+When using ES6's default parameter values, the default value is applied to the parameter if you either omit an argument, or you pass an `undefined` value in its place:
+
+```js
+function foo( a = 42, b = a + 1 ) {
+	console.log( a, b );
+}
+
+foo();					// 42 43
+foo( undefined );		// 42 43
+foo( 5 );				// 5 6
+foo( void 0, 7 );		// 42 7
+foo( null );			// null 1
+```
+
+From the ES6 default parameter values perspective, there's no difference between omitting an argument and passing an `undefined` value. However, there is a way to detect the difference in some cases:
+
+```js
+function foo( a = 42, b = a + 1 ) {
+	console.log(
+		arguments.length, a, b,
+		arguments[0], arguments[1]
+	);
+}
+
+foo();					// 0 42 43 undefined undefined
+foo( 10 );				// 1 10 11 10 undefined
+foo( 10, undefined );	// 2 10 11 10 undefined
+foo( 10, null );		// 2 10 null 10 null
+```
+While ES6 default parameter values can create divergence between the `arguments` array slot and the corresponding named parameter variable, this same disjointedness can also occur in tricky ways in ES5:
+
+```js
+function foo(a) {
+	a = 42;
+	console.log( arguments[0] );
+}
+
+foo( 2 );	// 42 (linked)
+foo();		// undefined (not linked)
+```
+
+If you pass an argument, the `arguments` slot and the named parameter are linked to always have the same value. If you omit the argument, no such linkage occurs.
+
+But in `strict` mode, the linkage doesn't exist regardless:
+
+```js
+function foo(a) {
+	"use strict";
+	a = 42;
+	console.log( arguments[0] );
+}
+
+foo( 2 );	// 2 (not linked)
+foo();		// undefined (not linked)
+```
+
+Prior to ES6, `arguments` is the only way to get an array of all passed arguments to pass along to other functions, which turns out to be quite useful. You can also mix named parameters with the `arguments` array and be safe, as long as you follow one simple rule: **never refer to a named parameter *and* its corresponding `arguments` slot at the same time.** If you avoid that bad practice, you'll never expose the leaky linkage behavior.
+
+```js
+function foo(a) {
+	console.log( a + arguments[1] ); // safe!
+}
+
+foo( 10, 32 );	// 42
+```
+## `try..finally`
+
+try` only requires either `catch` or `finally`, though both can be present if needed.
+
+The code in the `finally` clause *always* runs (no matter what), and it always runs right after the `try` (and `catch` if present) finish, before any other code runs. In one sense, you can kind of think of the code in a `finally` clause as being in a callback function that will always be called regardless of how the rest of the block behaves.
+
+So what happens if there's a `return` statement inside a `try` clause? It obviously will return a value, right? But does the calling code that receives that value run before or after the `finally`?
+
+```js
+function foo() {
+	try {
+		return 42;
+	}
+	finally {
+		console.log( "Hello" );
+	}
+
+	console.log( "never runs" );
+}
+
+console.log( foo() );
+// Hello
+// 42
+```
+
+The `return 42` runs right away, which sets up the completion value from the `foo()` call. This action completes the `try` clause and the `finally` clause immediately runs next. Only then is the `foo()` function complete, so that its completion value is returned back for the `console.log(..)` statement to use.
+
+The exact same behavior is true of a `throw` inside `try`:
+
+```js
+ function foo() {
+	try {
+		throw 42;
+	}
+	finally {
+		console.log( "Hello" );
+	}
+
+	console.log( "never runs" );
+}
+
+console.log( foo() );
+// Hello
+// Uncaught Exception: 42
+```
+
+Now, if an exception is thrown (accidentally or intentionally) inside a `finally` clause, it will override as the primary completion of that function. If a previous `return` in the `try` block had set a completion value for the function, that value will be abandoned.
+
+```js
+function foo() {
+	try {
+		return 42;
+	}
+	finally {
+		throw "Oops!";
+	}
+
+	console.log( "never runs" );
+}
+
+console.log( foo() );
+// Uncaught Exception: Oops!
+```
+
+It shouldn't be surprising that other nonlinear control statements like `continue` and `break` exhibit similar behavior to `return` and `throw`:
+
+```js
+for (var i=0; i<10; i++) {
+	try {
+		continue;
+	}
+	finally {
+		console.log( i );
+	}
+}
+// 0 1 2 3 4 5 6 7 8 9
+```
+
+The `console.log(i)` statement runs at the end of the loop iteration, which is caused by the `continue` statement. However, it still runs before the `i++` iteration update statement, which is why the values printed are `0..9` instead of `1..10`.
+
+**Note:** ES6 adds a `yield` statement, in generators (see the *Async & Performance* title of this series) which in some ways can be seen as an intermediate `return` statement. However, unlike a `return`, a `yield` isn't complete until the generator is resumed, which means a `try { .. yield .. }` has not completed. So an attached `finally` clause will not run right after the `yield` like it does with `return`.
+
+A `return` inside a `finally` has the special ability to override a previous `return` from the `try` or `catch` clause, but only if `return` is explicitly called:
+
+```js
+function foo() {
+	try {
+		return 42;
+	}
+	finally {
+		// no `return ..` here, so no override
+	}
+}
+
+function bar() {
+	try {
+		return 42;
+	}
+	finally {
+		// override previous `return 42`
+		return;
+	}
+}
+
+function baz() {
+	try {
+		return 42;
+	}
+	finally {
+		// override previous `return 42`
+		return "Hello";
+	}
+}
+
+foo();	// 42
+bar();	// undefined
+baz();	// "Hello"
+```
+
+Normally, the omission of `return` in a function is the same as `return;` or even `return undefined;`, but inside a `finally` block the omission of `return` does not act like an overriding `return undefined`; it just lets the previous `return` stand.
+
+In fact, we can really up the craziness if we combine `finally` with labeled `break` (discussed earlier in the chapter):
+
+```js
+function foo() {
+	bar: {
+		try {
+			return 42;
+		}
+		finally {
+			// break out of `bar` labeled block
+			break bar;
+		}
+	}
+
+	console.log( "Crazy" );
+
+	return "Hello";
+}
+
+console.log( foo() );
+// Crazy
+// Hello
+```
+
+But... don't do this. Seriously. Using a `finally` + labeled `break` to effectively cancel a `return` is doing your best to create the most confusing code possible. I'd wager no amount of comments will redeem this code.
+
+## `switch`
+Let's briefly explore the `switch` statement, a sort-of syntactic shorthand for an `if..else if..else..` statement chain.
+
+```js
+switch (a) {
+	case 2:
+		// do something
+		break;
+	case 42:
+		// do another thing
+		break;
+	default:
+		// fallback to here
+}
+```
+As you can see, it evaluates `a` once, then matches the resulting value to each `case` expression (just simple value expressions here). If a match is found, execution will begin in that matched `case`, and will either go until a `break` is encountered or until the end of the `switch` block is found.
+
+First, the matching that occurs between the `a` expression and each `case` expression is identical to the `===` algorithm (see Chapter 4). Often times `switch`es are used with absolute values in `case` statements, as shown above, so strict matching is appropriate.
+
+However, you may wish to allow coercive equality (aka `==`, see Chapter 4), and to do so you'll need to sort of "hack" the `switch` statement a bit:
+
+```js
+var a = "42";
+
+switch (true) {
+	case a == 10:
+		console.log( "10 or '10'" );
+		break;
+	case a == 42:
+		console.log( "42 or '42'" );
+		break;
+	default:
+		// never gets here
+}
+// 42 or '42'
+```
+
+Despite `==`, the `switch` matching itself is still strict, between `true` and `true` here. If the `case` expression resulted in something that was truthy but not strictly `true` (see Chapter 4), it wouldn't work. This can bite you if you're for instance using a "logical operator" like `||` or `&&` in your expression:
+
+```js
+var a = "hello world";
+var b = 10;
+
+switch (true) {
+	case (a || b == 10):
+		// never gets here
+		break;
+	default:
+		console.log( "Oops" );
+}
+// Oops
+```
+
+Since the result of `(a || b == 10)` is `"hello world"` and not `true`, the strict match fails. In this case, the fix is to force the expression explicitly to be a `true` or `false`, such as `case !!(a || b == 10):` (see Chapter 4).
+
+Lastly, the `default` clause is optional, and it doesn't necessarily have to come at the end (although that's the strong convention). Even in the `default` clause, the same rules apply about encountering a `break` or not:
+
+```js
+var a = 10;
+
+switch (a) {
+	case 1:
+	case 2:
+		// never gets here
+	default:
+		console.log( "default" );
+	case 3:
+		console.log( "3" );
+		break;
+	case 4:
+		console.log( "4" );
+}
+// default
+// 3
+```
+
+## Annex B (ECMAScript)
+
+It's a little known fact that the official name of the language is ECMAScript (referring to the ECMA standards body that manages it). What then is "JavaScript"? JavaScript is the common tradename of the language, of course, but more appropriately, JavaScript is basically the browser implementation of the spec.
+
+The official ECMAScript specification includes "Annex B," which discusses specific deviations from the official spec for the purposes of JS compatibility in browsers.
+
+The proper way to consider these deviations is that they are only reliably present/valid if your code is running in a browser. If your code always runs in browsers, you won't see any observable difference. If not (like if it can run in node.js, Rhino, etc.), or you're not sure, tread carefully.
+
+The main compatibility differences:
+
+* Octal number literals are allowed, such as `0123` (decimal `83`) in non-`strict mode`.
+* `window.escape(..)` and `window.unescape(..)` allow you to escape or unescape strings with `%`-delimited hexadecimal escape sequences. For example: `window.escape( "?foo=97%&bar=3%" )` produces `"%3Ffoo%3D97%25%26bar%3D3%25"`.
+* `String.prototype.substr` is quite similar to `String.prototype.substring`, except that instead of the second parameter being the ending index (noninclusive), the second parameter is the `length` (number of characters to include).
+
+### Web ECMAScript
+
+The Web ECMAScript specification (http://javascript.spec.whatwg.org/) covers the differences between the official ECMAScript specification and the current JavaScript implementations in browsers.
+
+In other words, these items are "required" of browsers (to be compatible with each other) but are not (as of the time of writing) listed in the "Annex B" section of the official spec:
+
+* `<!--` and `-->` are valid single-line comment delimiters.
+* `String.prototype` additions for returning HTML-formatted strings: `anchor(..)`, `big(..)`, `blink(..)`, `bold(..)`, `fixed(..)`, `fontcolor(..)`, `fontsize(..)`, `italics(..)`, `link(..)`, `small(..)`, `strike(..)`, and `sub(..)`. **Note:** These are very rarely used in practice, and are generally discouraged in favor of other built-in DOM APIs or user-defined utilities.
+* `RegExp` extensions: `RegExp.$1` .. `RegExp.$9` (match-groups) and `RegExp.lastMatch`/`RegExp["$&"]` (most recent match).
+* `Function.prototype` additions: `Function.prototype.arguments` (aliases internal `arguments` object) and `Function.caller` (aliases internal `arguments.caller`). **Note:** `arguments` and thus `arguments.caller` are deprecated, so you should avoid using them if possible. That goes doubly so for these aliases -- don't use them!
+
+## Host Objects
+
+The well-covered rules for how variables behave in JS have exceptions to them when it comes to variables that are auto-defined, or otherwise created and provided to JS by the environment that hosts your code (browser, etc.) -- so called, "host objects" (which include both built-in `object`s and `function`s).
+
+Host objects are critical to making our JS code work with its surrounding environment. But it's important to note when you're interacting with a host object and be careful assuming its behaviors, as they will quite often not conform to regular JS `object`s.
+
+One notable example of a host object that you probably interact with regularly is the `console` object and its various functions (`log(..)`, `error(..)`, etc.). The `console` object is provided by the *hosting environment* specifically so your code can interact with it for various development-related output tasks.
+
+In browsers, `console` hooks up to the developer tools' console display, whereas in node.js and other server-side JS environments, `console` is generally connected to the standard-output (`stdout`) and standard-error (`stderr`) streams of the JavaScript environment system process.
+
+## Global DOM Variables
+
+You're probably aware that declaring a variable in the global scope (with or without `var`) creates not only a global variable, but also its mirror: a property of the same name on the `global` object (`window` in the browser).
+
+But what may be less common knowledge is that (because of legacy browser behavior) creating DOM elements with `id` attributes creates global variables of those same names. For example:
+
+```html
+<div id="foo"></div>
+```
+
+And:
+
+```js
+if (typeof foo == "undefined") {
+	foo = 42;		// will never run
+}
+
+console.log( foo );	// HTML element
+```
+
+# Native Prototypes
+
+One of the most widely known and classic pieces of JavaScript *best practice* wisdom is: **never extend native prototypes**.
+
+First, don't extend the natives unless you're absolutely sure your code is the only code that will ever run in that environment. If you can't say that 100%, then extending the natives is dangerous. You must weigh the risks.
+
+Next, don't unconditionally define extensions (because you can overwrite natives accidentally). In this particular example, had the code said this:
+
+```js
+if (!Array.prototype.push) {
+	// Netscape 4 doesn't have Array.push
+	Array.prototype.push = function(item) {
+		this[this.length] = item;
+	};
+}
+```
+
+### Shims/Polyfills
+
+If there's already a spec for `Array.prototype.foobar`, and the specified behavior is equal to this logic, you're pretty safe in defining such a snippet, and in that case it's generally called a "polyfill" (or "shim").
+
+Such code is **very** useful to include in your code base to "patch" older browser environments that aren't updated to the newest specs. Using polyfills is a great way to create predictable code across all your supported environments.
+
+**Tip:** ES5-Shim (https://github.com/es-shims/es5-shim) is a comprehensive collection of shims/polyfills for bringing a project up to ES5 baseline, and similarly, ES6-Shim (https://github.com/es-shims/es6-shim) provides shims for new APIs added as of ES6. While APIs can be shimmed/polyfilled, new syntax generally cannot. To bridge the syntactic divide, you'll want to also use an ES6-to-ES5 transpiler like Traceur (https://github.com/google/traceur-compiler/wiki/Getting-Started).
+
+## `<script>`s
+
+So, if one `script` element defines a global function `foo()`, when a second `script` later runs, it can access and call `foo()` just as if it had defined the function itself.
+
+```html
+<script>foo();</script>
+
+<script>
+  function foo() { .. }
+</script>
+```
+
+But either of these *would* work instead:
+
+```html
+<script>
+  foo();
+  function foo() { .. }
+</script>
+```
+
+Or:
+
+```html
+<script>
+  function foo() { .. }
+</script>
+
+<script>foo();</script>
+```
+
+Also, if an error occurs in a `script` element (inline or external), as a separate standalone JS program it will fail and stop, but any subsequent `script`s will run (still with the shared `global`) unimpeded.
+
+You can create `script` elements dynamically from your code, and inject them into the DOM of the page, and the code in them will behave basically as if loaded normally in a separate file:
+
+```js
+var greeting = "Hello World";
+
+var el = document.createElement( "script" );
+
+el.text = "function foo(){ alert( greeting );\
+ } setTimeout( foo, 1000 );";
+
+document.body.appendChild( el );
+```
+
+**Note:** Of course, if you tried the above snippet but set `el.src` to some file URL instead of setting `el.text` to the code contents, you'd be dynamically creating an externally loaded `<script src=..></script>` element.
+
+ne difference between code in an inline code block and that same code in an external file is that in the inline code block, the sequence of characters `</script>` cannot appear together, as (regardless of where it appears) it would be interpreted as the end of the code block. So, beware of code like:
+
+```html
+<script>
+  var code = "<script>alert( 'Hello World' )</script>";
+</script>
+```
+
+It looks harmless, but the `</script>` appearing inside the `string` literal will terminate the script block abnormally, causing an error. The most common workaround is:
+
+```js
+"</sc" + "ript>";
+```
+
+Another deprecated practice with inline `script` elements is including HTML-style or X(HT)ML-style comments around inline code, like:
+
+```html
+<script>
+<!--
+alert( "Hello" );
+//-->
+</script>
+
+<script>
+<!--//--><![CDATA[//><!--
+alert( "World" );
+//--><!]]>
+</script>
+```
+
+Both of these are totally unnecessary now, so if you're still doing that, stop it!
+
+## Reserved Words
+
+The ES5 spec defines a set of "reserved words" in Section 7.6.1 that cannot be used as standalone variable names. Technically, there are four categories: "keywords", "future reserved words", the `null` literal, and the `true` / `false` boolean literals.
+
+Keywords are the obvious ones like `function` and `switch`. Future reserved words include things like `enum`, though many of the rest of them (`class`, `extends`, etc.) are all now actually used by ES6; there are other strict-mode only reserved words like `interface`.
+
+Prior to ES5, the reserved words also could not be property names or keys in object literals, but that restriction no longer exists.
+
+So, this is not allowed:
+
+```js
+var import = "42";
+```
+
+But this is allowed:
+
+```js
+var obj = { import: "42" };
+console.log( obj.import );
+```
+
+You should be aware though that some older browser versions (mainly older IE) weren't completely consistent on applying these rules, so there are places where using reserved words in object property name locations can still cause issues. Carefully test all supported browser environments.
+
+## Implementation Limits
+
+The JavaScript spec does not place arbitrary limits on things such as the number of arguments to a function or the length of a string literal, but these limits exist nonetheless, because of implementation details in different engines.
+
+
+Examples of other limits known to exist:
+
+* maximum number of characters allowed in a string literal (not just a string value)
+* size (bytes) of data that can be sent in arguments to a function call (aka stack size)
+* number of parameters in a function declaration
+* maximum depth of non-optimized call stack (i.e., with recursion): how long a chain of function calls from one to the other can be
+* number of seconds a JS program can run continuously blocking the browser
+* maximum length allowed for a variable name
+* ...
